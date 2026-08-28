@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.ipynb_checkpoints/
+figures/*.png
+figures/*.pdf
+!figures/.gitkeep
+data/
+.DS_Store
