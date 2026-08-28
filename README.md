@@ -1,5 +1,3 @@
-[![ci](https://github.com/Ahmed-KA-Abdalla/QVFS/actions/workflows/ci.yml/badge.svg)](https://github.com/Ahmed-KA-Abdalla/QVFS/actions/workflows/ci.yml)
-
 # Vacuum fluctuations in a 1 μm sphere
 
 A numerical study of the ground state of a free real scalar field inside a
@@ -72,6 +70,25 @@ twice the continuum value however large Λ becomes. Only the cycle average
 converges. A Gaussian regulator is provided for cases where the correlator
 itself, rather than an integral over it, is the object of interest.
 
+Building the correlator from the Dirichlet mode functions rather than the
+free-space form changes the picture. The regulated fluctuation amplitude
+recovers the unbounded-space value to within 0.1% for r < 0.6R and falls to
+zero at the wall, as the boundary condition requires. Subtracting the
+unbounded-space value reproduces the flat Dirichlet plane result
+−1/16π²d² to about 8% in the window 1/Λ ≪ d ≪ R.
+
+That subtraction is not a renormalisation. Removing the free-space mode sum
+term by term leaves a residual that grows with the regulator scale, because
+the cavity and free-space mode labels are not the same quantity. The
+cutoff-independent construction is point splitting. Values far from the wall
+are therefore regulator dependent and are not reported as physical.
+
+The consequence for the reconstruction study is that the cavity correlator is
+not a function of separation alone. At a fixed separation of 0.2R the
+correlator falls from 97% of the free-space value for a pair straddling the
+centre to 49% for a pair at r = 0.9R. No inversion G → d is well defined, so
+the MDS pipeline is no longer circular when applied to this correlator.
+
 ## Layout
 
 ```
@@ -82,6 +99,7 @@ src/qvacuum/
     modes.py          Dirichlet eigenmodes, Weyl law, lattice count
     vacuum.py         per-mode amplitudes, <phi^2>
     correlators.py    equal-time two-point functions and regulators
+    cavity.py         Dirichlet mode functions, boundary-aware correlator
     reconstruct.py    distance inversion, classical MDS, Procrustes
 
 scripts/
@@ -90,6 +108,7 @@ scripts/
     03_vacuum_fluctuations.py  <phi^2> and its divergence
     04_correlators.py          G(r) and the mass correlation length
     05_reconstruction.py       MDS pipeline check
+    06_boundary_effects.py     wall suppression and position dependence
 
 tests/                validation against analytic results
 docs/                 derivations and computational limits
@@ -123,8 +142,10 @@ ruff check .
 Every module is checked against a closed form. Zeros of j₀ against nπ; the
 counting function against the two-term Weyl law; ⟨φ²⟩ against Λ²/8π²; the
 massive correlator against its massless limit and against exponential decay;
-the sharp-cutoff correlator against (1 − cos Λr)/4π²r²; MDS against the
-coordinates used to build the matrix. A module without such a check is not
+the sharp-cutoff correlator against (1 − cos Λr)/4π²r²; the cavity mode
+functions against unit normalisation on the ball and against vanishing at the
+wall; the cavity correlator against the regulated free-space form in the
+interior; MDS against the coordinates used to build the matrix. A module without such a check is not
 merged.
 
 ## Not implemented
@@ -132,9 +153,9 @@ merged.
 Standard Model field content. Interacting λφ⁴ theory, which would require
 Euclidean lattice Monte Carlo and a compiled backend. Entanglement entropy from
 the Gaussian covariance matrix, which is the intended second phase. A
-boundary-aware correlator built from the Dirichlet mode functions; the
-correlation matrix currently uses the free-space form and so knows nothing
-about the sphere wall.
+proper point-split renormalisation of <phi^2>, which the present term-by-term
+subtraction only approximates. The reconstruction study against the cavity
+correlator, now that a non-circular target exists.
 
 ## Licence
 
