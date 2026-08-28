@@ -1,3 +1,5 @@
+[![ci](https://github.com/Ahmed-KA-Abdalla/QVFS/actions/workflows/ci.yml/badge.svg)](https://github.com/Ahmed-KA-Abdalla/QVFS/actions/workflows/ci.yml)
+
 # Vacuum fluctuations in a 1 μm sphere
 
 A numerical study of the ground state of a free real scalar field inside a
