@@ -8,15 +8,18 @@ claim about emergent spacetime is made or implied.
 
 from __future__ import annotations
 
+from .cavity import CavityField, free_correlator_regulated
 from .constants import DEFAULT_RADIUS
 from .geometry import Sphere, pair_distances
 from .modes import ModeSpectrum, enumerate_modes, lattice_count, weyl_count
 
 __all__ = [
     "DEFAULT_RADIUS",
+    "CavityField",
     "ModeSpectrum",
     "Sphere",
     "enumerate_modes",
+    "free_correlator_regulated",
     "lattice_count",
     "pair_distances",
     "weyl_count",
