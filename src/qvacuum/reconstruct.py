@@ -50,6 +50,44 @@ def distance_from_correlator(g: np.ndarray, mass: float = 0.0,
     return out.reshape(g.shape)
 
 
+def inferred_distances(g: np.ndarray, floor: float | None = None) -> np.ndarray:
+    """Distances inferred from a correlation matrix under the free-space law.
+
+    Applies d = 1 / (2 pi sqrt(G)) elementwise, which is exact for an unbounded
+    massless field and is a misspecified model for any correlator that is not a
+    monotone function of separation alone. Non-positive entries have no image
+    under the inversion and are assigned ``floor``, since a vanishing
+    correlation corresponds to infinite inferred separation.
+
+    Applying this to a boundary-aware correlator is the point: the failure of
+    the inversion is the measurement.
+    """
+    g = np.asarray(g, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        d = np.sqrt(1.0 / (4.0 * np.pi**2 * np.where(g > 0, g, np.nan)))
+    if floor is None:
+        floor = np.nanmax(d[np.isfinite(d)]) if np.any(np.isfinite(d)) else 0.0
+    d = np.nan_to_num(d, nan=floor, posinf=floor)
+    d = 0.5 * (d + d.T)
+    np.fill_diagonal(d, 0.0)
+    return d
+
+
+def euclidean_defect(eigenvalues: np.ndarray) -> float:
+    """Negative eigenvalue mass of the doubly centred matrix, as a fraction.
+
+    Zero when the inferred distances embed exactly in a Euclidean space of some
+    dimension. A growing value means the inferred distance matrix is not a
+    metric of any Euclidean geometry, which is the sharpest single indicator
+    that the inversion has broken down.
+    """
+    eigenvalues = np.asarray(eigenvalues, dtype=float)
+    positive = eigenvalues[eigenvalues > 0].sum()
+    if positive == 0:
+        return np.inf
+    return float(abs(eigenvalues[eigenvalues < 0].sum()) / positive)
+
+
 def classical_mds(distances: np.ndarray, dim: int = 3
                   ) -> tuple[np.ndarray, np.ndarray]:
     """Classical multidimensional scaling.
