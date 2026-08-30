@@ -89,6 +89,34 @@ correlator falls from 97% of the free-space value for a pair straddling the
 centre to 49% for a pair at r = 0.9R. No inversion G → d is well defined, so
 the MDS pipeline is no longer circular when applied to this correlator.
 
+Feeding the cavity correlator into the reconstruction pipeline breaks it, in a
+way that can be measured. Inverting under the free-space law d = 1/2π√G and
+applying classical MDS recovers the lattice exactly from the free-space
+correlator (RMSE ~10⁻¹⁵ lattice spacings) and progressively fails from the
+cavity correlator as points are allowed closer to the wall:
+
+| points restricted to | sites | RMSE / spacing | Euclidean defect |
+|---:|---:|---:|---:|
+| r < 0.45R | 27 | 0.42 | 0.16 |
+| r < 0.55R | 33 | 0.60 | 0.20 |
+| r < 0.65R | 81 | 1.61 | 0.29 |
+| r < 0.75R | 93 | 2.17 | 0.35 |
+| r < 0.85R | 171 | 6.02 | 0.51 |
+| r < 0.95R | 251 | 20.09 | 0.73 |
+
+The Euclidean defect is the negative eigenvalue mass of the doubly centred
+matrix as a fraction of the positive. It is zero for genuine distances and
+rises to 0.73, meaning the inferred distances do not embed in a Euclidean
+space of any dimension.
+
+Broken down by where a pair sits, the median distance error runs from 0.089
+for pairs in the core to 1.455 for pairs at mean radius above 0.7R — a factor
+of sixteen across the sphere.
+
+Points lying exactly on the wall are excluded throughout. The Dirichlet
+condition makes G vanish there identically, so such points are infinitely
+distant under any inversion.
+
 ## Layout
 
 ```
@@ -109,6 +137,7 @@ scripts/
     04_correlators.py          G(r) and the mass correlation length
     05_reconstruction.py       MDS pipeline check
     06_boundary_effects.py     wall suppression and position dependence
+    07_reconstruction_failure.py  where recovery from correlations breaks down
 
 tests/                validation against analytic results
 docs/                 derivations and computational limits
@@ -154,8 +183,10 @@ Standard Model field content. Interacting λφ⁴ theory, which would require
 Euclidean lattice Monte Carlo and a compiled backend. Entanglement entropy from
 the Gaussian covariance matrix, which is the intended second phase. A
 proper point-split renormalisation of <phi^2>, which the present term-by-term
-subtraction only approximates. The reconstruction study against the cavity
-correlator, now that a non-circular target exists.
+subtraction only approximates. Mutual information as a reconstruction probe,
+which is UV finite where the two-point function is not. Entanglement entropy
+from the Gaussian covariance matrix, which needs the momentum correlator
+<pi pi> alongside the field correlator built here.
 
 ## Licence
 
