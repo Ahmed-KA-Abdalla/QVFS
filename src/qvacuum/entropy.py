@@ -140,6 +140,84 @@ def entropy_convergence(n_sites: int, n_inside: int,
     return [(ell, float(cumulative[ell])) for ell in ell_values]
 
 
+def region_entropy(x: np.ndarray, p: np.ndarray,
+                   sites: np.ndarray) -> float:
+    """Entropy of an arbitrary subset of sites, given covariance matrices.
+
+    Unlike :func:`chain_entropy` the region need not be contiguous, which is
+    what makes mutual information between separated regions accessible.
+    """
+    sites = np.asarray(sites, dtype=int)
+    index = np.ix_(sites, sites)
+    eigenvalues = np.linalg.eigvals(x[index] @ p[index]).real
+    return _entropy_from_spectrum(np.sqrt(np.clip(eigenvalues, 0.25, None)))
+
+
+def mutual_information_chain(n_sites: int, ell: int, region_a: np.ndarray,
+                             region_b: np.ndarray) -> float:
+    """I(A:B) = S_A + S_B - S_AB for one radial chain.
+
+    Non-negative by subadditivity, and finite in the continuum limit: the
+    area-law divergences of the three terms cancel, since every boundary
+    appearing in S_A or S_B also appears in S_AB.
+    """
+    x, p = covariance_matrices(n_sites, ell)
+    union = np.concatenate([np.asarray(region_a), np.asarray(region_b)])
+    if len(np.unique(union)) != len(union):
+        raise ValueError("regions must be disjoint")
+    return (
+        region_entropy(x, p, region_a)
+        + region_entropy(x, p, region_b)
+        - region_entropy(x, p, union)
+    )
+
+
+def mutual_information(n_sites: int, region_a: np.ndarray, region_b: np.ndarray,
+                       ell_max: int = 200) -> float:
+    """Total I(A:B) summed over angular momentum sectors.
+
+    Converges in l far faster than the entropy does, because the divergent
+    boundary contributions have already cancelled. A ceiling of 200 is usually
+    ample where the entropy needs 800.
+    """
+    return float(
+        sum(
+            (2 * ell + 1)
+            * mutual_information_chain(n_sites, ell, region_a, region_b)
+            for ell in range(ell_max + 1)
+        )
+    )
+
+
+def pairwise_mutual_information(x: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """I(i:j) between every pair of single sites, from covariance matrices.
+
+    The matrices must describe canonical variables, satisfying
+    [phi_i, pi_j] = i delta_ij. Continuum correlators evaluated at points do
+    not: they are delta-normalised densities, and using them directly gives
+    single-site symplectic eigenvalues of order 10^22. See
+    :func:`qvacuum.cavity.CavityField.smeared_covariance` for the cell
+    averaging that produces canonical variables from them.
+    """
+    n = len(x)
+    single = np.array([
+        _entropy_from_spectrum(
+            np.sqrt(np.clip(np.array([x[i, i] * p[i, i]]), 0.25, None))
+        )
+        for i in range(n)
+    ])
+    out = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i + 1, n):
+            index = np.ix_([i, j], [i, j])
+            eigenvalues = np.linalg.eigvals(x[index] @ p[index]).real
+            joint = _entropy_from_spectrum(
+                np.sqrt(np.clip(eigenvalues, 0.25, None))
+            )
+            out[i, j] = out[j, i] = single[i] + single[j] - joint
+    return out
+
+
 def region_radius(n_inside: int) -> float:
     """Radius of the traced region in lattice spacings, R = n + 1/2."""
     return n_inside + 0.5

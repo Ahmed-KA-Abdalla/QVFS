@@ -128,3 +128,130 @@ def test_invalid_arguments_rejected():
         radial_coupling_matrix(10, -1)
     with pytest.raises(ValueError):
         symplectic_spectrum(10, 0, 11)
+
+
+def test_mutual_information_non_negative():
+    """Subadditivity: I(A:B) >= 0 for any disjoint regions."""
+    a = np.arange(0, 6)
+    for gap in (2, 5, 10):
+        b = np.arange(6 + gap, 12 + gap)
+        for ell in (0, 5, 30):
+            from qvacuum.entropy import mutual_information_chain
+
+            assert mutual_information_chain(N_SITES, ell, a, b) >= -1e-12
+
+
+def test_mutual_information_falls_with_separation():
+    from qvacuum.entropy import mutual_information
+
+    a = np.arange(0, 6)
+    values = [
+        mutual_information(N_SITES, a, np.arange(6 + g, 12 + g), 100)
+        for g in (2, 6, 12)
+    ]
+    assert np.all(np.diff(values) < 0)
+
+
+def test_overlapping_regions_rejected():
+    from qvacuum.entropy import mutual_information_chain
+
+    with pytest.raises(ValueError, match="disjoint"):
+        mutual_information_chain(N_SITES, 0, np.arange(0, 6), np.arange(4, 10))
+
+
+def test_mutual_information_is_uv_finite():
+    """The central result of script 09.
+
+    Holding the geometry fixed and refining the lattice, the entropy grows as
+    the area while the mutual information settles. Divergences cancel in the
+    combination S_A + S_B - S_AB.
+    """
+    from qvacuum.entropy import entanglement_entropy, mutual_information
+
+    infos, entropies = [], []
+    for scale in (2, 4, 6):
+        n_sites = 20 * scale
+        infos.append(
+            mutual_information(
+                n_sites, np.arange(0, 2 * scale),
+                np.arange(4 * scale, 6 * scale), 30 * scale,
+            )
+        )
+        entropies.append(entanglement_entropy(n_sites, 2 * scale, 30 * scale))
+
+    assert entropies[2] / entropies[0] > 5
+    assert abs(infos[2] - infos[0]) / infos[0] < 0.2
+
+
+def test_pairwise_mutual_information_properties():
+    from qvacuum.cavity import CavityField, smeared_covariance
+    from qvacuum.entropy import pairwise_mutual_information
+    from qvacuum.geometry import Sphere
+
+    sphere = Sphere(0.5e-6)
+    spacing = sphere.lattice_spacing(2)
+    points = sphere.lattice_points(2)
+    radii = np.linalg.norm(points, axis=1)
+    points = points[radii < 0.95 * sphere.radius]
+    field = CavityField(radius=sphere.radius, regulator_scale=40.0 / sphere.radius)
+
+    x, p = smeared_covariance(field, points, spacing)
+    assert np.min(np.sqrt(np.diag(x) * np.diag(p))) > 0.5
+
+    info = pairwise_mutual_information(x, p)
+    assert np.allclose(info, info.T)
+    off = ~np.eye(len(points), dtype=bool)
+    assert np.all(info[off] >= -1e-12)
+
+
+def test_unsmeared_correlators_are_not_canonical():
+    """Guards the smearing step.
+
+    Continuum correlators used directly give single-site symplectic
+    eigenvalues vastly above one half, because they are delta-normalised
+    densities rather than canonical variables.
+    """
+    from qvacuum.cavity import (
+        CavityField,
+        momentum_correlation_matrix,
+        smeared_covariance,
+    )
+    from qvacuum.geometry import Sphere
+
+    sphere = Sphere(0.5e-6)
+    points = sphere.lattice_points(2)
+    radii = np.linalg.norm(points, axis=1)
+    points = points[radii < 0.95 * sphere.radius]
+    field = CavityField(radius=sphere.radius, regulator_scale=40.0 / sphere.radius)
+
+    raw = np.sqrt(
+        np.diag(field.correlation_matrix(points))
+        * np.diag(momentum_correlation_matrix(field, points))
+    )
+    smeared = np.sqrt(
+        np.diag(smeared_covariance(field, points, sphere.lattice_spacing(2))[0])
+        * np.diag(smeared_covariance(field, points, sphere.lattice_spacing(2))[1])
+    )
+    assert raw.min() > 1e10
+    assert smeared.max() < 1e4
+
+
+def test_unphysical_smearing_is_rejected():
+    """Guards the failure found at a lattice-matched cutoff.
+
+    Reducing Lambda * a towards pi drives the single-site symplectic
+    eigenvalue below one half. No physical Gaussian state permits this, and
+    the clipping inside symplectic_spectrum would otherwise hide it behind a
+    plausible-looking entropy.
+    """
+    from qvacuum.cavity import CavityField, smeared_covariance
+    from qvacuum.geometry import Sphere
+
+    sphere = Sphere(0.5e-6)
+    spacing = sphere.lattice_spacing(3)
+    points = sphere.lattice_points(3)
+    points = points[np.linalg.norm(points, axis=1) < 0.95 * sphere.radius]
+    field = CavityField(radius=sphere.radius, regulator_scale=np.pi / spacing)
+
+    with pytest.raises(ValueError, match="below the uncertainty bound"):
+        smeared_covariance(field, points, spacing)

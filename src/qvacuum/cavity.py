@@ -174,6 +174,70 @@ class CavityField:
         return out
 
 
+def momentum_correlation_matrix(field: CavityField,
+                               points: np.ndarray) -> np.ndarray:
+    """<pi(x) pi(y)> on a set of points, the conjugate of the field correlator.
+
+    Identical mode sum with omega / 2 in place of 1 / (2 omega).
+    """
+    points = np.asarray(points, dtype=float)
+    radii = np.linalg.norm(points, axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        unit = np.where(radii[:, None] > 0, points / radii[:, None], 0.0)
+    cos_gamma = np.clip(unit @ unit.T, -1.0, 1.0)
+    ell = field.spectrum.ell
+    k = field.spectrum.k
+    weight = field._weight * k**2
+    out = np.zeros((len(points), len(points)))
+    for l_value in np.unique(ell):
+        sel = ell == l_value
+        u = field._norm[sel] * spherical_jn(l_value, np.outer(radii, k[sel]))
+        out += eval_legendre(l_value, cos_gamma) * ((u * weight[sel]) @ u.T)
+    return out
+
+
+def smeared_covariance(field: CavityField, points: np.ndarray,
+                       spacing: float) -> tuple[np.ndarray, np.ndarray]:
+    """Canonical covariance matrices X and P for cell-averaged variables.
+
+    Continuum correlators are delta-normalised densities and do not satisfy
+    the canonical commutation relation on a lattice. Defining
+
+        phi_i = a^-3 * integral over cell i of phi,
+        pi_i  =        integral over cell i of pi,
+
+    restores [phi_i, pi_j] = i delta_ij, and to midpoint accuracy gives
+    X_ij = G(x_i, x_j) unchanged while P_ij picks up a factor a^6.
+
+    The midpoint approximation has no valid window. For Lambda * a of order
+    ten or more the single-site symplectic eigenvalue scales as (Lambda a)^3,
+    showing the evaluation is dominated by the regulated delta function rather
+    than a genuine cell average. Reducing Lambda * a towards pi drives the
+    eigenvalue below one half, which no physical Gaussian state permits. A
+    correct treatment integrates the correlator over each cell; that is not
+    implemented, so results built on this function are not quantitatively
+    trustworthy.
+
+    Raises
+    ------
+    ValueError
+        If any single-site symplectic eigenvalue falls below one half, since
+        the resulting covariance pair violates the uncertainty relation and
+        any entropy derived from it is meaningless.
+    """
+    x = field.correlation_matrix(points)
+    p = momentum_correlation_matrix(field, points) * spacing**6
+    single = np.sqrt(np.diag(x) * np.diag(p))
+    if single.min() < 0.5:
+        raise ValueError(
+            f"smallest single-site symplectic eigenvalue is {single.min():.4f}, "
+            "below the uncertainty bound of one half; the midpoint smearing has "
+            "produced an unphysical covariance pair at Lambda * a = "
+            f"{field.regulator_scale * spacing:.2f}"
+        )
+    return x, p
+
+
 def free_correlator_regulated(separation: np.ndarray, cutoff: float) -> np.ndarray:
     """Unbounded-space massless correlator under the same Gaussian regulator.
 
