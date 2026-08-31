@@ -144,6 +144,49 @@ radius. Decomposing in spherical harmonics first turns each (l, m) sector into
 an independent radial chain of a few hundred sites, trading angular resolution
 for radial resolution.
 
+## Mutual information
+
+Every entropy above is cutoff dependent: it scales as the boundary area in
+lattice units and diverges as the spacing goes to zero. The mutual information
+between disjoint regions is not, because each divergent boundary contributes
+to S_AB as well as to S_A or S_B and cancels. Holding the geometry fixed and
+refining the lattice:
+
+| scale | sites | I | S_A |
+|---:|---:|---:|---:|
+| 2 | 40 | 0.1200 | 5.81 |
+| 4 | 80 | 0.1093 | 20.92 |
+| 6 | 120 | 0.1059 | 45.33 |
+| 8 | 160 | 0.1042 | 79.06 |
+
+I settles while S_A grows as the area. It is the only quantity in the
+repository that survives the continuum limit.
+
+Whether it repairs the reconstruction is not settled here. Judged by the
+Euclidean defect of the inferred distances, with an inversion law not fitted
+to the answer:
+
+| inversion law | defect |
+|---|---:|
+| mutual information, analytic I ~ d⁻⁴ | 0.703 |
+| mutual information, arbitrary I ~ d⁻⁶ | 0.505 |
+| two-point function, exact free-space law | 0.668 |
+
+Fitting the exponent to the true distances gives 0.379, which appears to beat
+the two-point function, but that comparison is circular: the two-point
+inversion uses the exact free-space law with no fitted parameter.
+
+More seriously, the pairwise construction rests on a cell smearing that has no
+valid window. Continuum correlators are delta-normalised densities, not
+canonical variables, and give single-site symplectic eigenvalues of order
+10²². Midpoint cell averaging brings them to order 80, but they then scale as
+(Λa)³, which shows the evaluation is still dominated by the regulated delta
+function rather than a genuine cell average. Lowering Λa towards π drives the
+eigenvalues below one half, which no physical Gaussian state permits; that
+case now raises rather than silently clipping. The numbers above are therefore
+not quantitatively trustworthy, and no conclusion is drawn from them. Proper
+cell integration would settle the question.
+
 ## Layout
 
 ```
@@ -155,7 +198,7 @@ src/qvacuum/
     vacuum.py         per-mode amplitudes, <phi^2>
     correlators.py    equal-time two-point functions and regulators
     cavity.py         Dirichlet mode functions, boundary-aware correlator
-    entropy.py        radial-chain entanglement entropy, Gaussian covariance
+    entropy.py        radial-chain entropy, mutual information, covariance
     reconstruct.py    distance inversion, classical MDS, Procrustes
 
 scripts/
@@ -167,6 +210,7 @@ scripts/
     06_boundary_effects.py     wall suppression and position dependence
     07_reconstruction_failure.py  where recovery from correlations breaks down
     08_entanglement_entropy.py    the area law and its coefficient
+    09_mutual_information.py      UV finiteness; reconstruction still fails
 
 tests/                validation against analytic results
 docs/                 derivations and computational limits
