@@ -117,6 +117,33 @@ Points lying exactly on the wall are excluded throughout. The Dirichlet
 condition makes G vanish there identically, so such points are infinitely
 distant under any inversion.
 
+## Entanglement entropy
+
+Tracing the ground state over a ball gives an entropy proportional to the
+boundary area, not the enclosed volume. Computed on a radial lattice of 90
+sites with the angular sum taken to l = 800:
+
+| R/a | S | S/R² | S/R³ |
+|---:|---:|---:|---:|
+| 4.5 | 5.92 | 0.2924 | 0.0650 |
+| 8.5 | 21.27 | 0.2944 | 0.0346 |
+| 14.5 | 61.95 | 0.2946 | 0.0203 |
+| 20.5 | 123.72 | 0.2944 | 0.0144 |
+| 32.5 | 309.91 | 0.2934 | 0.0090 |
+
+The log-log slope is 2.0012, against 2 for an area law and 3 for a volume law.
+The fitted coefficient is 0.2935, against Srednicki's published 0.30; the
+deficit is the truncation of the angular sum, whose tail falls slowly enough
+that raising the ceiling from 400 to 800 still adds 0.2%. Any quoted entropy
+states its ceiling.
+
+This uses a different discretisation from the rest of the repository. A three
+dimensional lattice cannot resolve an area law, since the region radius must
+span a decade while dense diagonalisation caps out near sixteen sites per
+radius. Decomposing in spherical harmonics first turns each (l, m) sector into
+an independent radial chain of a few hundred sites, trading angular resolution
+for radial resolution.
+
 ## Layout
 
 ```
@@ -128,6 +155,7 @@ src/qvacuum/
     vacuum.py         per-mode amplitudes, <phi^2>
     correlators.py    equal-time two-point functions and regulators
     cavity.py         Dirichlet mode functions, boundary-aware correlator
+    entropy.py        radial-chain entanglement entropy, Gaussian covariance
     reconstruct.py    distance inversion, classical MDS, Procrustes
 
 scripts/
@@ -138,6 +166,7 @@ scripts/
     05_reconstruction.py       MDS pipeline check
     06_boundary_effects.py     wall suppression and position dependence
     07_reconstruction_failure.py  where recovery from correlations breaks down
+    08_entanglement_entropy.py    the area law and its coefficient
 
 tests/                validation against analytic results
 docs/                 derivations and computational limits
@@ -174,7 +203,9 @@ massive correlator against its massless limit and against exponential decay;
 the sharp-cutoff correlator against (1 − cos Λr)/4π²r²; the cavity mode
 functions against unit normalisation on the ball and against vanishing at the
 wall; the cavity correlator against the regulated free-space form in the
-interior; MDS against the coordinates used to build the matrix. A module without such a check is not
+interior; the covariance matrices against X P = I/4 for a pure global state;
+the entropy against Srednicki's area-law coefficient; MDS against the
+coordinates used to build the matrix. A module without such a check is not
 merged.
 
 ## Not implemented
@@ -184,9 +215,10 @@ Euclidean lattice Monte Carlo and a compiled backend. Entanglement entropy from
 the Gaussian covariance matrix, which is the intended second phase. A
 proper point-split renormalisation of <phi^2>, which the present term-by-term
 subtraction only approximates. Mutual information as a reconstruction probe,
-which is UV finite where the two-point function is not. Entanglement entropy
-from the Gaussian covariance matrix, which needs the momentum correlator
-<pi pi> alongside the field correlator built here.
+which is UV finite where the two-point function is not. Entanglement entropy of a
+non-concentric or non-spherical region. Entropy of a thermal rather than a
+ground state. The relation between the area-law coefficient and the cavity
+correlator, which the two discretisations do not currently share.
 
 ## Licence
 
