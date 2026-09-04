@@ -144,6 +144,35 @@ radius. Decomposing in spherical harmonics first turns each (l, m) sector into
 an independent radial chain of a few hundred sites, trading angular resolution
 for radial resolution.
 
+## Thermal states
+
+The area law belongs to the vacuum, not to entropy in general. Adding the
+thermal factor coth(ω/2T) to each normal mode drives the scaling from an area
+law to a volume law:
+
+| T | log-log slope | S/R² | S/R³ | S at R = 20.5 |
+|---:|---:|---:|---:|---:|
+| 0.00 | 1.996 | 0.2904 | 0.0142 | 122.05 |
+| 0.05 | 2.002 | 0.2949 | 0.0144 | 123.93 |
+| 0.10 | 2.050 | 0.3268 | 0.0159 | 137.34 |
+| 0.20 | 2.330 | 0.5940 | 0.0290 | 249.64 |
+| 0.50 | 2.906 | 5.5439 | 0.2704 | 2329.84 |
+| 1.00 | 2.993 | 34.9923 | 1.7069 | 14705.52 |
+
+Temperature is in inverse lattice spacings. The intermediate exponents are not
+a third scaling law but the sum of an area term and a volume term, with the
+crossover radius falling as T rises.
+
+At T > 0 the global state is mixed, so a region's entropy no longer measures
+entanglement alone; it mixes entanglement with ordinary thermal entropy. The
+validation is that tracing over nothing reproduces the Bose occupation entropy
+S = Σ[(n+1)ln(n+1) − n ln n] to eight significant figures, which the
+covariance construction has no way of knowing about in advance.
+
+This is the caveat that matters wherever Srednicki's result is invoked in a
+black hole context: area scaling is a vacuum property, and any state with
+appreciable thermal occupation does not show it.
+
 ## Mutual information
 
 Every entropy above is cutoff dependent: it scales as the boundary area in
@@ -215,7 +244,7 @@ src/qvacuum/
     vacuum.py         per-mode amplitudes, <phi^2>
     correlators.py    equal-time two-point functions and regulators
     cavity.py         Dirichlet mode functions, boundary-aware correlator
-    entropy.py        radial-chain entropy, mutual information, covariance
+    entropy.py        radial-chain entropy, mutual information, thermal states
     reconstruct.py    distance inversion, classical MDS, Procrustes
 
 scripts/
@@ -229,6 +258,7 @@ scripts/
     08_entanglement_entropy.py    the area law and its coefficient
     09_mutual_information.py      UV finiteness; reconstruction still fails
     10_cell_integration.py        why cell averaging cannot fix the smearing
+    11_thermal_states.py          area law to volume law with temperature
 
 tests/                validation against analytic results
 docs/                 derivations and computational limits
@@ -278,8 +308,7 @@ the Gaussian covariance matrix, which is the intended second phase. A
 proper point-split renormalisation of <phi^2>, which the present term-by-term
 subtraction only approximates. Mutual information as a reconstruction probe,
 which is UV finite where the two-point function is not. Entanglement entropy of a
-non-concentric or non-spherical region. Entropy of a thermal rather than a
-ground state. The relation between the area-law coefficient and the cavity
+non-concentric or non-spherical region. The relation between the area-law coefficient and the cavity
 correlator, which the two discretisations do not currently share.
 
 ## Licence
