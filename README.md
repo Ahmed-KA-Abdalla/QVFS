@@ -176,16 +176,33 @@ Fitting the exponent to the true distances gives 0.379, which appears to beat
 the two-point function, but that comparison is circular: the two-point
 inversion uses the exact free-space law with no fitted parameter.
 
-More seriously, the pairwise construction rests on a cell smearing that has no
-valid window. Continuum correlators are delta-normalised densities, not
+More seriously, the pairwise construction is withdrawn. It rests on a cell
+smearing that cannot work. Continuum correlators are delta-normalised densities, not
 canonical variables, and give single-site symplectic eigenvalues of order
 10²². Midpoint cell averaging brings them to order 80, but they then scale as
-(Λa)³, which shows the evaluation is still dominated by the regulated delta
-function rather than a genuine cell average. Lowering Λa towards π drives the
-eigenvalues below one half, which no physical Gaussian state permits; that
-case now raises rather than silently clipping. The numbers above are therefore
-not quantitatively trustworthy, and no conclusion is drawn from them. Proper
-cell integration would settle the question.
+(Λa)³. Performing the cell integral properly, by Gauss-Legendre quadrature on
+an expanded node set, shows the midpoint value was a quadrature artefact:
+
+| Λa | order 1 | order 2 | order 3 | order 4 | order 6 |
+|---:|---:|---:|---:|---:|---:|
+| 6 | 7.690 | 1.098 | 0.507 | 0.393 | 0.362 |
+| 12 | 61.73 | 8.034 | 3.169 | 1.751 | 0.853 |
+
+Refining does not converge towards the midpoint value; it falls monotonically
+away from it, through the uncertainty bound of one half, below which no
+physical Gaussian state lies.
+
+The reason is structural rather than numerical. With m_α the cell average of
+mode α and f_α the regulator, Cauchy-Schwarz gives
+X_ii P_ii ≥ a⁶(Σ f_α m_α²/2)². Completeness gives Σ m_α² = a⁻³ at f = 1,
+making the bound exactly one quarter; any regulator lowers it. A regulated
+continuum field restricted to cells is not a canonical system, and no
+quadrature will make it one.
+
+The lesson is to discretise the theory first and compute correlators from the
+discrete system, which is what the radial chains do — they satisfy X P = I/4
+to 2 × 10⁻¹⁵ by construction. The UV finiteness result above is unaffected,
+since it uses those chains and involves no smearing.
 
 ## Layout
 
@@ -211,6 +228,7 @@ scripts/
     07_reconstruction_failure.py  where recovery from correlations breaks down
     08_entanglement_entropy.py    the area law and its coefficient
     09_mutual_information.py      UV finiteness; reconstruction still fails
+    10_cell_integration.py        why cell averaging cannot fix the smearing
 
 tests/                validation against analytic results
 docs/                 derivations and computational limits
