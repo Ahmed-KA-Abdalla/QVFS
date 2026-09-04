@@ -37,6 +37,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+from numpy.polynomial.legendre import leggauss
 from scipy.integrate import quad
 from scipy.special import eval_legendre, spherical_jn
 
@@ -196,9 +197,96 @@ def momentum_correlation_matrix(field: CavityField,
     return out
 
 
+def cell_nodes_weights(points: np.ndarray, spacing: float,
+                       order: int) -> tuple[np.ndarray, np.ndarray]:
+    """Gauss-Legendre nodes and normalised weights for averaging over cubic cells.
+
+    Returns nodes of shape (n_points * order^3, 3), ordered so that reshaping
+    to (n_points, order^3, ...) recovers the per-cell grouping, and weights
+    summing to one so the contraction is an average rather than an integral.
+    """
+    x, w = leggauss(order)
+    offsets = np.stack(
+        np.meshgrid(*(3 * [x * spacing / 2]), indexing="ij"), axis=-1
+    ).reshape(-1, 3)
+    weights = np.einsum("i,j,k->ijk", w / 2, w / 2, w / 2).ravel()
+    nodes = (points[:, None, :] + offsets[None, :, :]).reshape(-1, 3)
+    return nodes, weights
+
+
+def cell_averaged_covariance(field: CavityField, points: np.ndarray,
+                             spacing: float, order: int = 3,
+                             ) -> tuple[np.ndarray, np.ndarray]:
+    """Covariance matrices for genuinely cell-averaged variables.
+
+    Performs the double cell integral by Gauss-Legendre quadrature on an
+    expanded node set, which is what :func:`smeared_covariance` approximates by
+    a single midpoint evaluation.
+
+    Doing it properly reveals that the construction fails, and why. The
+    uncertainty bound reads
+
+        X_ii P_ii >= a^6 ( sum_alpha f_alpha m_alpha^2 / 2 )^2,
+
+    where m_alpha is the cell average of mode alpha and f_alpha is the
+    regulator. Completeness gives sum_alpha m_alpha^2 = a^-3 when f = 1, which
+    makes the bound exactly one quarter. Any regulator with f < 1 lowers it,
+    so the symplectic eigenvalues fall below one half and the covariance pair
+    is unphysical. Refining the quadrature drives them down monotonically
+    towards that unphysical limit rather than towards one half.
+
+    The lesson is that a regulated continuum field restricted to cells is not a
+    canonical system. Correlators must be computed from an already-discretised
+    theory, as :mod:`qvacuum.entropy` does, rather than discretised after the
+    fact. That module satisfies X P = I / 4 to machine precision by
+    construction.
+
+    Cells must lie entirely inside the sphere, so callers should restrict to
+    radii below R - sqrt(3) a / 2.
+
+    Raises
+    ------
+    ValueError
+        If any cell leaves the sphere, or if any single-site symplectic
+        eigenvalue falls below one half.
+    """
+    points = np.asarray(points, dtype=float)
+    nodes, weights = cell_nodes_weights(points, spacing, order)
+    if np.linalg.norm(nodes, axis=1).max() > field.radius:
+        raise ValueError(
+            "quadrature nodes leave the sphere; restrict points to "
+            "radii below R - sqrt(3) * spacing / 2"
+        )
+    n_points = len(points)
+    n_nodes = len(weights)
+    x_full = field.correlation_matrix(nodes).reshape(
+        n_points, n_nodes, n_points, n_nodes
+    )
+    p_full = momentum_correlation_matrix(field, nodes).reshape(
+        n_points, n_nodes, n_points, n_nodes
+    )
+    x = np.einsum("q,iqjr,r->ij", weights, x_full, weights)
+    p = np.einsum("q,iqjr,r->ij", weights, p_full, weights) * spacing**6
+    single = np.sqrt(np.diag(x) * np.diag(p))
+    if single.min() < 0.5:
+        raise ValueError(
+            f"smallest single-site symplectic eigenvalue is {single.min():.4f}, "
+            "below the uncertainty bound of one half; a regulated continuum "
+            "field restricted to cells is not a canonical system, and refining "
+            "the quadrature makes this worse rather than better"
+        )
+    return x, p
+
+
 def smeared_covariance(field: CavityField, points: np.ndarray,
                        spacing: float) -> tuple[np.ndarray, np.ndarray]:
-    """Canonical covariance matrices X and P for cell-averaged variables.
+    """Midpoint approximation to :func:`cell_averaged_covariance`.
+
+    Retained because it is what the results in script 09 were computed with.
+    Its apparently healthy symplectic eigenvalues are a quadrature artefact:
+    raising the quadrature order drives them monotonically below one half. Use
+    :func:`cell_averaged_covariance` to see this, and prefer
+    :mod:`qvacuum.entropy` for anything requiring genuine canonical variables.
 
     Continuum correlators are delta-normalised densities and do not satisfy
     the canonical commutation relation on a lattice. Defining

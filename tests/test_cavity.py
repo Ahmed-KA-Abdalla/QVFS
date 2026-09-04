@@ -129,3 +129,85 @@ def test_points_outside_sphere_rejected(cavity):
     outside = np.array([[2 * RADIUS, 0.0, 0.0]])
     with pytest.raises(ValueError, match="inside the sphere"):
         cavity.correlation_matrix(outside)
+
+
+def test_cell_nodes_partition_correctly():
+    """Weights average to one and nodes group by cell."""
+    from qvacuum.cavity import cell_nodes_weights
+
+    points = np.array([[0.0, 0.0, 0.0], [1e-7, 0.0, 0.0]])
+    spacing = 5e-8
+    nodes, weights = cell_nodes_weights(points, spacing, 3)
+    assert weights.sum() == pytest.approx(1.0)
+    assert len(nodes) == len(points) * 27
+    grouped = nodes.reshape(len(points), 27, 3)
+    for i, centre in enumerate(points):
+        assert np.allclose(
+            np.einsum("q,qd->d", weights, grouped[i]), centre, atol=1e-18
+        )
+        assert np.all(np.abs(grouped[i] - centre) <= spacing / 2 + 1e-18)
+
+
+def test_cell_averaging_falls_below_uncertainty_bound(cavity):
+    """The structural failure recorded in script 10.
+
+    Refining the cell quadrature drives the single-site symplectic eigenvalue
+    monotonically downwards, through the uncertainty bound, because a
+    regulated continuum field restricted to cells is not a canonical system.
+    """
+    from qvacuum.cavity import cell_nodes_weights, momentum_correlation_matrix
+
+    sphere = Sphere(RADIUS)
+    spacing = sphere.lattice_spacing(3)
+    points = sphere.lattice_points(3)
+    margin = RADIUS - np.sqrt(3) / 2 * spacing
+    points = points[np.linalg.norm(points, axis=1) <= margin][:4]
+    field = CavityField(radius=RADIUS, regulator_scale=6.0 / spacing)
+
+    minima = []
+    for order in (1, 2, 3, 4):
+        nodes, weights = cell_nodes_weights(points, spacing, order)
+        n_p, n_q = len(points), len(weights)
+        x = np.einsum(
+            "q,iqjr,r->ij", weights,
+            field.correlation_matrix(nodes).reshape(n_p, n_q, n_p, n_q),
+            weights,
+        )
+        p = np.einsum(
+            "q,iqjr,r->ij", weights,
+            momentum_correlation_matrix(field, nodes).reshape(
+                n_p, n_q, n_p, n_q),
+            weights,
+        ) * spacing**6
+        minima.append(float(np.sqrt(np.diag(x) * np.diag(p)).min()))
+
+    assert np.all(np.diff(minima) < 0)
+    assert minima[0] > 0.5
+    assert minima[-1] < 0.5
+
+
+def test_cell_averaged_covariance_rejects_unphysical(cavity):
+    from qvacuum.cavity import cell_averaged_covariance
+
+    sphere = Sphere(RADIUS)
+    spacing = sphere.lattice_spacing(3)
+    points = sphere.lattice_points(3)
+    margin = RADIUS - np.sqrt(3) / 2 * spacing
+    points = points[np.linalg.norm(points, axis=1) <= margin][:4]
+    field = CavityField(radius=RADIUS, regulator_scale=6.0 / spacing)
+
+    with pytest.raises(ValueError, match="uncertainty bound"):
+        cell_averaged_covariance(field, points, spacing, order=4)
+
+
+def test_cell_averaged_covariance_rejects_cells_leaving_sphere(cavity):
+    from qvacuum.cavity import cell_averaged_covariance
+
+    sphere = Sphere(RADIUS)
+    spacing = sphere.lattice_spacing(3)
+    points = sphere.lattice_points(3)
+    outermost = points[np.argmax(np.linalg.norm(points, axis=1))][None, :]
+    field = CavityField(radius=RADIUS, regulator_scale=6.0 / spacing)
+
+    with pytest.raises(ValueError, match="leave the sphere"):
+        cell_averaged_covariance(field, outermost, spacing, order=2)
