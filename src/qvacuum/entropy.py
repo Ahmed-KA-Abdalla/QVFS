@@ -67,22 +67,58 @@ def radial_coupling_matrix(n_sites: int, ell: int) -> np.ndarray:
     return np.diag(diagonal) + np.diag(off, 1) + np.diag(off, -1)
 
 
-def covariance_matrices(n_sites: int, ell: int) -> tuple[np.ndarray, np.ndarray]:
-    """Ground-state covariance matrices X = <phi phi> and P = <pi pi>.
+def covariance_matrices(n_sites: int, ell: int, temperature: float = 0.0
+                        ) -> tuple[np.ndarray, np.ndarray]:
+    """Covariance matrices X = <phi phi> and P = <pi pi> at temperature T.
 
-    Their product is the identity over four, which is the statement that the
-    global state is pure.
+    Each normal mode of frequency omega carries a thermal factor
+    coth(omega / 2T), which is one at T = 0 and grows as 2T / omega in the
+    classical limit. Temperature is measured in inverse lattice spacings,
+    consistent with the rest of the module.
+
+    At T = 0 the product X P is the identity over four, the statement that the
+    global state is pure. At T > 0 it is not: the global state is mixed, and
+    the entropy of a region then mixes thermal and entanglement contributions
+    rather than measuring entanglement alone.
     """
+    if temperature < 0:
+        raise ValueError("temperature must be non-negative")
     eigenvalues, vectors = eigh(radial_coupling_matrix(n_sites, ell))
     if eigenvalues.min() <= 0:
         raise ValueError("coupling matrix is not positive definite")
-    root = np.sqrt(eigenvalues)
-    x = (vectors / root) @ vectors.T / 2.0
-    p = (vectors * root) @ vectors.T / 2.0
+    omega = np.sqrt(eigenvalues)
+    if temperature == 0.0:
+        thermal = np.ones_like(omega)
+    else:
+        thermal = 1.0 / np.tanh(omega / (2.0 * temperature))
+    x = (vectors * (thermal / (2.0 * omega))) @ vectors.T
+    p = (vectors * (omega * thermal / 2.0)) @ vectors.T
     return x, p
 
 
-def symplectic_spectrum(n_sites: int, ell: int, n_inside: int) -> np.ndarray:
+def bose_entropy(n_sites: int, ell: int, temperature: float) -> float:
+    """Thermal entropy of a whole chain, from the Bose occupation numbers.
+
+    S = sum_k [ (n_k + 1) ln(n_k + 1) - n_k ln n_k ],  n_k = 1 / (e^(w/T) - 1)
+
+    Independent of the covariance machinery, so tracing over nothing must
+    reproduce it exactly. This is the validation that the thermal factor has
+    been applied correctly.
+    """
+    if temperature <= 0:
+        return 0.0
+    omega = np.sqrt(np.linalg.eigvalsh(radial_coupling_matrix(n_sites, ell)))
+    occupation = 1.0 / np.expm1(omega / temperature)
+    return float(
+        np.sum(
+            (occupation + 1) * np.log1p(occupation)
+            - occupation * np.log(occupation)
+        )
+    )
+
+
+def symplectic_spectrum(n_sites: int, ell: int, n_inside: int,
+                        temperature: float = 0.0) -> np.ndarray:
     """Eigenvalues nu_k of sqrt(X_A P_A) for the innermost n_inside sites.
 
     Each nu is at least one half; a value of exactly one half contributes no
@@ -91,7 +127,7 @@ def symplectic_spectrum(n_sites: int, ell: int, n_inside: int) -> np.ndarray:
     """
     if not 0 < n_inside <= n_sites:
         raise ValueError("n_inside must lie between 1 and n_sites")
-    x, p = covariance_matrices(n_sites, ell)
+    x, p = covariance_matrices(n_sites, ell, temperature)
     product = x[:n_inside, :n_inside] @ p[:n_inside, :n_inside]
     eigenvalues = np.linalg.eigvals(product).real
     return np.sqrt(np.clip(eigenvalues, 0.25, None))
@@ -105,13 +141,17 @@ def _entropy_from_spectrum(nu: np.ndarray) -> float:
     return float(np.sum(upper * np.log(upper) - lower_term))
 
 
-def chain_entropy(n_sites: int, ell: int, n_inside: int) -> float:
+def chain_entropy(n_sites: int, ell: int, n_inside: int,
+                  temperature: float = 0.0) -> float:
     """Entropy S_l of one radial chain, excluding the (2l + 1) degeneracy."""
-    return _entropy_from_spectrum(symplectic_spectrum(n_sites, ell, n_inside))
+    return _entropy_from_spectrum(
+        symplectic_spectrum(n_sites, ell, n_inside, temperature)
+    )
 
 
 def entanglement_entropy(n_sites: int, n_inside: int,
-                         ell_max: int = DEFAULT_ELL_MAX) -> float:
+                         ell_max: int = DEFAULT_ELL_MAX,
+                         temperature: float = 0.0) -> float:
     """Total entropy of the ball of radius (n_inside + 1/2) lattice spacings.
 
     Sums (2l + 1) S_l over l up to ell_max. Truncating the sum underestimates
@@ -120,7 +160,7 @@ def entanglement_entropy(n_sites: int, n_inside: int,
     """
     return float(
         sum(
-            (2 * ell + 1) * chain_entropy(n_sites, ell, n_inside)
+            (2 * ell + 1) * chain_entropy(n_sites, ell, n_inside, temperature)
             for ell in range(ell_max + 1)
         )
     )

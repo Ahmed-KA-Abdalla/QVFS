@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from qvacuum.entropy import (
+    bose_entropy,
     chain_entropy,
     covariance_matrices,
     entanglement_entropy,
@@ -255,3 +256,60 @@ def test_unphysical_smearing_is_rejected():
 
     with pytest.raises(ValueError, match="below the uncertainty bound"):
         smeared_covariance(field, points, spacing)
+
+
+def test_thermal_whole_system_matches_bose_formula():
+    """Tracing over nothing must reproduce the Bose thermal entropy exactly.
+
+    Independent of the covariance machinery, so this validates that the
+    thermal factor coth(omega / 2T) has been applied correctly.
+    """
+    for temperature in (0.1, 0.5, 2.0):
+        numeric = chain_entropy(30, 3, 30, temperature)
+        analytic = bose_entropy(30, 3, temperature)
+        assert numeric == pytest.approx(analytic, rel=1e-8)
+
+
+def test_zero_temperature_recovers_ground_state():
+    assert chain_entropy(N_SITES, 2, 10, 0.0) == pytest.approx(
+        chain_entropy(N_SITES, 2, 10)
+    )
+    assert bose_entropy(N_SITES, 2, 0.0) == 0.0
+
+
+def test_entropy_increases_with_temperature():
+    values = [chain_entropy(N_SITES, 1, 8, t) for t in (0.0, 0.1, 0.3, 1.0)]
+    assert np.all(np.diff(values) > 0)
+
+
+def test_negative_temperature_rejected():
+    with pytest.raises(ValueError, match="non-negative"):
+        covariance_matrices(N_SITES, 0, -1.0)
+
+
+def test_area_law_becomes_volume_law():
+    """The central result of script 11.
+
+    The area law belongs to the vacuum. Heating the state drives the scaling
+    exponent from two towards three.
+    """
+    n_values = (4, 8, 12, 16)
+    radii = np.array([region_radius(n) for n in n_values])
+
+    def slope(temperature: float) -> float:
+        entropies = np.array([
+            entanglement_entropy(N_SITES, n, ELL_MAX, temperature)
+            for n in n_values
+        ])
+        return float(np.polyfit(np.log(radii), np.log(entropies), 1)[0])
+
+    assert slope(0.0) == pytest.approx(2.0, abs=0.06)
+    assert slope(1.0) > 2.8
+
+
+def test_thermal_state_is_globally_mixed():
+    """X P = I / 4 holds at zero temperature and fails above it."""
+    x, p = covariance_matrices(30, 2, 0.0)
+    assert np.allclose(x @ p, np.eye(30) / 4.0, atol=1e-10)
+    x, p = covariance_matrices(30, 2, 0.5)
+    assert not np.allclose(x @ p, np.eye(30) / 4.0, atol=1e-3)
